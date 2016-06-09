@@ -1,0 +1,174 @@
+Index: /grass/trunk/gui/wxpython/core/workspace.py
+===================================================================
+--- /grass/trunk/gui/wxpython/core/workspace.py	(revision 68644)
++++ /grass/trunk/gui/wxpython/core/workspace.py	(revision 68645)
+@@ -53,4 +53,7 @@
+         #
+         self.layers = []
++        #
++        # list of overlays
++        self.overlays = []
+         #
+         # nviz state
+@@ -214,4 +217,11 @@
+                     "nviz": nviz})
+ 
++            elif item.tag == 'overlay':
++                cmd = self.__processOverlay(item)
++
++                self.overlays.append({
++                    "display": self.displayIndex,
++                    "cmd": cmd})
++
+     def __processLayer(self, layer):
+         """Process layer item
+@@ -271,4 +281,29 @@
+ 
+         return (cmd, selected, vdigit, nviz)
++
++    def __processOverlay(self, node_overlay):
++        """
++        Process overlay item
++        :param overlay: tree node
++        """
++        cmd = list()
++
++        cmd.append(node_overlay.get('name', "unknown"))
++
++        # flags
++        for f in node_overlay.findall('flag'):
++            flag = f.get('name', '')
++            if len(flag) > 1:
++                cmd.append('--' + flag)
++            else:
++                cmd.append('-' + flag)
++
++        # parameters
++        for p in node_overlay.findall('parameter'):
++            cmd.append('%s=%s' % (p.get('name', ''),
++                                  self.__filterValue(
++                                      self.__getNodeText(p, 'value'))))
++
++        return cmd
+ 
+     def __processLayerVdigit(self, node_vdigit):
+@@ -867,4 +902,8 @@
+                     constants=nvizDisp.constants)
+ 
++            # list of map elements
++            item = mapTree.GetFirstChild(mapTree.root)[0]
++            self.__writeOverlay(mapdisp)
++
+             file.write('%s</display>\n' % (' ' * self.indent))
+ 
+@@ -1475,4 +1514,71 @@
+         self.file.write('%s</%s>\n' % (' ' * self.indent, tag))
+ 
++    def __writeOverlay(self, mapdisp):
++        """Function for writing map elements (barscale, northarrow etc.)
++        """
++        disp_size = mapdisp.GetMapWindow().GetClientSize()
++
++        if mapdisp.arrow.IsShown():
++            cmd = mapdisp.arrow.cmd
++            coord_px = mapdisp.arrow.coords
++            self.__writeOverlayParams(disp_size, cmd, coord_px)
++
++        if (mapdisp.legend) and mapdisp.legend.IsShown():
++            cmd = mapdisp.legend.cmd
++            coord_px = mapdisp.legend.coords
++            self.__writeOverlayParams(disp_size, cmd, coord_px)
++
++        if mapdisp.barscale and mapdisp.barscale.IsShown():
++            cmd = mapdisp.barscale.cmd
++            coord_px = mapdisp.barscale.coords
++            self.__writeOverlayParams(disp_size, cmd, coord_px)
++
++    def __writeOverlayParams(self, disp_size, cmd, coord_px):
++        """
++        :param mapdisp: mapdisplay
++        :param cmd: d.* command with flags and parameters
++        """
++        # Canvas width = display width minus 1 px on both sides
++        cnvs_w = float(disp_size[0])
++        # Canvas height = display height minus 1 px on bottom and height of toolbar
++        cnvs_h = float(disp_size[1])
++
++        x_prcn = round(coord_px[0] / cnvs_w * 100, 1)
++        y_prcn = 100 - round(coord_px[1] / cnvs_h * 100, 1)
++        self.indent += 4
++        self.file.write('%s<overlay name="%s">\n' % (' ' * self.indent, cmd[0]))
++        self.indent += 4
++        for prm in cmd[1:]:
++            if prm[0] == "-":
++                for i in range(1, len(prm)):
++                    self.file.write('%s<flag name="%s" />\n' % (' ' * self.indent, prm[i]))
++            elif prm.startswith("at="):
++                # legend "at" argument takes 4 numbers not 2
++                if cmd[0] == "d.legend":
++                    leg_coord_prcn = prm.split("=", 1)[1].split(",")
++                    leg_w = float(leg_coord_prcn[3]) - float(leg_coord_prcn[2])
++                    leg_h = float(leg_coord_prcn[1]) - float(leg_coord_prcn[0])
++                    self.file.write('%s<parameter name="at">\n' % (' ' * self.indent))
++                    self.indent += 4
++                    self.file.write('%s<value>%.1f,%.1f,%.1f,%.1f</value>\n' % (' ' * self.indent,
++                                    y_prcn - leg_h, y_prcn, x_prcn, x_prcn + leg_w))
++                    self.indent -= 4
++                    self.file.write('%s</parameter>\n' % (' ' * self.indent))
++                else:
++                    self.file.write('%s<parameter name="at">\n' % (' ' * self.indent))
++                    self.indent += 4
++                    self.file.write('%s<value>%.1f,%.1f</value>\n' % (' ' * self.indent, x_prcn, y_prcn))
++                    self.indent -= 4
++                    self.file.write('%s</parameter>\n' % (' ' * self.indent))
++            else:
++                self.file.write('%s<parameter name="%s">\n' % (' ' * self.indent, prm.split("=", 1)[0]))
++                self.indent += 4
++                self.file.write('%s<value>%s</value>\n' % (' ' * self.indent, prm.split("=", 1)[1]))
++                self.indent -= 4
++                self.file.write('%s</parameter>\n' % (' ' * self.indent))
++        self.indent -= 4
++        self.file.write('%s</overlay>\n' % (' ' * self.indent))
++        self.indent -= 4
++
+ 
+ class ProcessGrcFile(object):
+Index: /grass/trunk/gui/wxpython/lmgr/frame.py
+===================================================================
+--- /grass/trunk/gui/wxpython/lmgr/frame.py	(revision 68644)
++++ /grass/trunk/gui/wxpython/lmgr/frame.py	(revision 68645)
+@@ -1468,4 +1468,5 @@
+                 maptree.SelectItem(layer, select=False)
+ 
++
+         busy.Destroy()
+ 
+@@ -1474,9 +1475,19 @@
+             mapdisplay[i].mapWindowProperties.autoRender = display['render']
+ 
+-        for idx, mdisp in enumerate(mapdisplay):
++            for overlay in gxwXml.overlays:
++                # overlay["cmd"][0] name of command e.g. d.barscale, d.legend
++                # overlay["cmd"][1:] parameters and flags
++                if overlay['display'] == i:
++                    if overlay['cmd'][0] == "d.legend":
++                        mapdisplay[i].AddLegend(overlay['cmd'])
++                    if overlay['cmd'][0] == "d.barscale":
++                        mapdisplay[i].AddBarscale(overlay['cmd'])
++                    if overlay['cmd'][0] == "d.northarrow":
++                        mapdisplay[i].AddArrow(overlay['cmd'])
++
+             # avoid double-rendering when loading workspace
+             # mdisp.MapWindow2D.UpdateMap()
+             # nviz
+-            if gxwXml.displays[idx]['viewMode'] == '3d':
++            if gxwXml.displays[i]['viewMode'] == '3d':
+                 mdisp.AddNviz()
+                 self.nviz.UpdateState(view=gxwXml.nviz_state['view'],
+@@ -1485,5 +1496,5 @@
+                 mdisp.MapWindow3D.constants = gxwXml.nviz_state['constants']
+                 for idx, constant in enumerate(mdisp.MapWindow3D.constants):
+-                    mdisp.MapWindow3D.AddConstant(constant, idx + 1)
++                    mdisp.MapWindow3D.AddConstant(constant, i + 1)
+                 for page in ('view', 'light', 'fringe', 'constant', 'cplane'):
+                     self.nviz.UpdatePage(page)
