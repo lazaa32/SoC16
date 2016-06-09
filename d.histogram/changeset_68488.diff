@@ -1,0 +1,10 @@
+Index: /grass/trunk/display/d.histogram/bar.c
+===================================================================
+--- /grass/trunk/display/d.histogram/bar.c	(revision 68487)
++++ /grass/trunk/display/d.histogram/bar.c	(revision 68488)
+@@ -308,4 +308,5 @@
+ 		sprintf(txt, "null");
+ 	    else if (is_fp) {
++		dmin = range_dmin + i * (range_dmax - range_dmin) / nsteps;
+ 		if ((range_dmax - range_dmin) <= 1.0)
+ 		    sprintf(txt, "%.2f", dmin / (double)tic_unit);
