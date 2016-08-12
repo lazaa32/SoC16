@@ -1,0 +1,560 @@
+Index: /grass/branches/releasebranch_7_2/display/d.northarrow/d.northarrow.html
+===================================================================
+--- /grass/branches/releasebranch_7_2/display/d.northarrow/d.northarrow.html	(revision 69050)
++++ /grass/branches/releasebranch_7_2/display/d.northarrow/d.northarrow.html	(revision 69051)
+@@ -1,5 +1,5 @@
+ <h2>DESCRIPTION</h2>
+  
+-<em>d.northarrow</em> displays a north arrow symbol the graphics monitor at
++<em>d.northarrow</em> displays a north arrow symbol at
+ the given screen coordinates. If no coordinates are given it will draw the
+ north arrow in the bottom right of the display. It can draw the north arrow
+@@ -7,12 +7,24 @@
+  <a href="http://grasswiki.osgeo.org/wiki/Cartography#Display_monitors">wiki
+ page</a> for details).
++With certain styles of north arrow label 'N' is displayed by default,
++and can be changed with option <b>label</b>, for example for different languages.
++The label can be hidden with <b>-t</b> flag.
++<p>
++North arrow can be rotated, for example to align with true north, not grid north.
++The angle in degrees counter-clockwise (or radians with <b>-r</b> flag)
++can be specified with option <b>rotation</b>. Label is rotated together with the
++arrow, unless flag <b>-w</b> is specified.
+ 
+ 
+-<h2>TODO</h2>
++<h2>EXAMPLES</h2>
+ 
+-Add options to use an arbitrary rotation angle for when grid north and true
+-north diverge, and add a flag to calculate that convergence angle and apply
+-the rotation automatically.
++Display a north arrow symbol as a basic compas with label NORTH,
++rotated by 8 degrees with label, with black line and gray fill:<br>
+ 
++<div class="code"><pre>
++d.mon wx0
++d.northarrow style=basic_compas rotation=8 label=NORTH -w color=black fill_color=gray
++d.mon -r
++</pre></div>
+ 
+ <h2>SEE ALSO</h2>
+@@ -28,5 +40,6 @@
+ <h2>AUTHOR</h2>
+ 
+-Hamish Bowman, <i>Department of Geology, University of Otago, New Zealand</i>
++Hamish Bowman, <i>Department of Geology, University of Otago, New Zealand</i><br>
++Improvements as part of GSoC 2016 by Adam Laza, <i>CTU in Prague</i>
+ 
+ <p>
+Index: /grass/branches/releasebranch_7_2/display/d.northarrow/draw_n_arrow.c
+===================================================================
+--- /grass/branches/releasebranch_7_2/display/d.northarrow/draw_n_arrow.c	(revision 69050)
++++ /grass/branches/releasebranch_7_2/display/d.northarrow/draw_n_arrow.c	(revision 69051)
+@@ -5,4 +5,5 @@
+ #include <stdio.h>
+ #include <string.h>
++#include <math.h>
+ #include <grass/gis.h>
+ #include <grass/display.h>
+@@ -12,10 +13,11 @@
+ #include "options.h"
+ 
+-int draw_n_arrow(double east, double north, double fontsize,
+-		 char *n_arrow_num, double line_width)
++int draw_n_arrow(double east, double north, double rotation, char *lbl,
++                 int rot_with_text, double fontsize, char *n_arrow_num,
++                 double line_width)
+ {
+     double x_pos, y_pos;
+     double t, b, l, r;
+-    double tt, tb, tl, tr; /* text box*/
++    double tt, tb, tl, tr;      /* text box */
+ 
+     SYMBOL *Symb;
+@@ -29,5 +31,5 @@
+     /* Establish text size */
+     if (fontsize > 0)
+-	D_text_size(fontsize, fontsize);
++        D_text_size(fontsize, fontsize);
+ 
+     D_setup_unity(0);
+@@ -38,46 +40,72 @@
+ 
+     if (line_width > 0)
+-	D_line_width(line_width);
++        D_line_width(line_width);
+ 
+     if (fontsize > 0) {
+-    	/* draw the "N" */
+-    	D_get_text_box("N", &tt, &tb, &tl, &tr);
+-    	D_use_color(fg_color);
+-
+-    	/* positions manually tuned */
+-    	switch (n_arrow_num[0]) {
+-    	case '1':
+-    	    D_pos_abs(x_pos - (tr + tl) / 2, y_pos - 45);
+-    	    D_text("N");
+-    	    break;
+-    	case '3':
+-    	    D_pos_abs(x_pos - (tr + tl) / 2, y_pos - 60);
+-    	    D_text("N");
+-    	    break;
+-    	case '4':
+-    	    D_pos_abs(x_pos - (tr + tl) / 2, y_pos - 45);
+-    	    D_text("N");
+-    	    break;
+-    	case '7':
+-    	    D_pos_abs(x_pos - (tr + tl) / 2, y_pos - 70);
+-    	    D_text("N");
+-    	    break;
+-    	case '9':
+-	case 'f':
+-    	    D_pos_abs(x_pos - (tr + tl) / 2, y_pos - 55);
+-    	    D_text("N");
+-	    break;
+-    	case 'b':
+-    	    D_pos_abs(x_pos - (tr + tl) / 2, y_pos - 48.5);
+-    	    D_text("N");
+-    	    break;
+-    	case '2':
+-    	case '5':
+-    	case '6':
+-    	case '8':
+-    	    break;
+-    	default:
+-    	    G_fatal_error(_("Could not parse symbol"));
+-    	}
++        /* draw the label (default "N") */
++        if (rot_with_text)
++            D_text_rotation(rotation * 180.0 / M_PI);
++        D_get_text_box(lbl, &tt, &tb, &tl, &tr);
++        D_use_color(text_color);
++
++        /* positions manually tuned */
++        switch (n_arrow_num[0]) {
++        case '1':
++            D_pos_abs(x_pos - sin(rotation) * 50 - (tr + tl) / 2,
++                      y_pos - cos(rotation) * 50 - (tb + tt) / 2);
++            D_text(lbl);
++            break;
++        case '3':
++            D_pos_abs(x_pos - sin(rotation) * 60 - (tr + tl) / 2,
++                      y_pos - cos(rotation) * 60 - (tb + tt) / 2);
++            D_text(lbl);
++            break;
++        case '4':
++            D_pos_abs(x_pos - sin(rotation) * 45 - (tr + tl) / 2,
++                      y_pos - cos(rotation) * 45 - (tb + tt) / 2);
++            D_text(lbl);
++            break;
++        case '7':
++            D_pos_abs(x_pos - sin(rotation) * 70 - (tr + tl) / 2,
++                      y_pos - cos(rotation) * 70 - (tb + tt) / 2);
++            D_text(lbl);
++            break;
++        case '8':
++            D_pos_abs(x_pos - sin(rotation) * 60 - (tr + tl) / 2,
++                      y_pos - cos(rotation) * 60 - (tb + tt) / 2);
++            D_text(lbl);
++            break;
++        case '9':
++            D_pos_abs(x_pos - sin(rotation) * 55 - (tr + tl) / 2,
++                      y_pos - cos(rotation) * 55 - (tb + tt) / 2);
++            D_text(lbl);
++            break;
++        case 'f':
++            D_pos_abs(x_pos - sin(rotation) * 55 - (tr + tl) / 2,
++                      y_pos - cos(rotation) * 55 - (tb + tt) / 2);
++            D_text(lbl);
++            break;
++        case 'b':
++            D_pos_abs(x_pos - sin(rotation) * 48.5 - (tr + tl) / 2,
++                      y_pos - cos(rotation) * 48.5 - (tb + tt) / 2);
++            D_text(lbl);
++            break;
++        case 'a':
++            D_pos_abs(x_pos - sin(rotation) * 50 - (tr + tl) / 2,
++                      y_pos - cos(rotation) * 50 - (tb + tt) / 2);
++            D_text(lbl);
++            break;
++        case 's':
++            D_pos_abs(x_pos - sin(rotation) * 50 - (tr + tl) / 2,
++                      y_pos - cos(rotation) * 50 - (tb + tt) / 2);
++            D_text(lbl);
++            break;
++        case '2':
++        case '5':
++        case '6':
++            break;
++        default:
++            G_fatal_error(_("Could not parse symbol"));
++        }
+     }
+ 
+@@ -87,55 +115,62 @@
+ 
+     if (D_color_number_to_RGB(fg_color, &R, &G, &B) == 0)
+-    	/* fall back to black on failure */
+-    	G_str_to_color(DEFAULT_FG_COLOR, &R, &G, &B);
++        line_color->a = RGBA_COLOR_TRANSPARENT;
++    else
++        line_color->a = RGBA_COLOR_OPAQUE;
+     line_color->r = (unsigned char)R;
+     line_color->g = (unsigned char)G;
+     line_color->b = (unsigned char)B;
+-    line_color->a = RGBA_COLOR_OPAQUE;
++
+ 
+     if (D_color_number_to_RGB(bg_color, &R, &G, &B) == 0)
+-    	/* fall back to black on failure */
+-    	G_str_to_color(DEFAULT_FG_COLOR, &R, &G, &B);
++        fill_color->a = RGBA_COLOR_TRANSPARENT;
++    else
++        fill_color->a = RGBA_COLOR_OPAQUE;
+     fill_color->r = (unsigned char)R;
+     fill_color->g = (unsigned char)G;
+     fill_color->b = (unsigned char)B;
+-    fill_color->a = RGBA_COLOR_OPAQUE;
+-
+-    if (n_arrow_num[0] == '2' || n_arrow_num[0] == '9')
+-    	fill_color->a = RGBA_COLOR_TRANSPARENT;
+ 
+     /* sizes manually tuned */
+     switch (n_arrow_num[0]) {
+     case '1':
+-    	symbol_size = 35.;
+-    	break;
++        symbol_size = 35.;
++        break;
+     case '2':
+-    	symbol_size = 19.;
+-    	break;
++        symbol_size = 19.;
++        break;
+     case '3':
+-    	symbol_size = 20.;
+-    	break;
++        symbol_size = 20.;
++        break;
+     case '4':
+-    	symbol_size = 15.;
+-    	break;
++        symbol_size = 15.;
++        break;
+     case '5':
+     case '6':
+-    	symbol_size = 14.;
+-    	break;
++        symbol_size = 14.;
++        break;
+     case '7':
+-    	symbol_size = 23.;
+-    	break;
++        symbol_size = 23.;
++        break;
+     case '8':
+     case '9':
+-    	symbol_size = 17.;
+-    	break;
++        symbol_size = 17.;
++        break;
+     case 'b':
+-    	symbol_size = 80.;
+-    	break;
++        symbol_size = 80.;
++        break;
+     case 'f':
+-    	symbol_size = 100.;
+-    	break;
++        symbol_size = 100.;
++        break;
++    case 'a':
++        if (n_arrow_num[5] == '2')
++            symbol_size = 53.;
++        else
++            symbol_size = 70.;
++        break;
++    case 's':
++        symbol_size = 80.;
++        break;
+     default:
+-    	G_fatal_error(_("Could not parse symbol"));
++        G_fatal_error(_("Could not parse symbol"));
+     }
+ 
+@@ -144,23 +179,31 @@
+ 
+     if (n_arrow_num[0] == 'b')
+-	strcpy(icon, "n_arrows/basic_compass");
++        strcpy(icon, "n_arrows/basic_compass");
+     else if (n_arrow_num[0] == 'f')
+-	strcpy(icon, "n_arrows/fancy_compass");
++        strcpy(icon, "n_arrows/fancy_compass");
++    else if (n_arrow_num[0] == 'a' && n_arrow_num[5] == '1')
++        strcpy(icon, "basic/arrow1");
++    else if (n_arrow_num[0] == 'a' && n_arrow_num[5] == '2')
++        strcpy(icon, "basic/arrow2");
++    else if (n_arrow_num[0] == 'a' && n_arrow_num[5] == '3')
++        strcpy(icon, "basic/arrow3");
++    else if (n_arrow_num[0] == 's')
++        strcpy(icon, "extra/4pt_star");
+     else {
+-	strcpy(icon, "n_arrows/n_arrow");
+-	strncat(icon, n_arrow_num, 32);
++        strcpy(icon, "n_arrows/n_arrow");
++        strncat(icon, n_arrow_num, 32);
+     }
+ 
+     Symb = S_read(icon);
+ 
+-    if(!Symb)
+-    	G_fatal_error(_("Could not read symbol \"%s\""), icon);
+-
+-    S_stroke(Symb, symbol_size, 0.0, 0);
++    if (!Symb)
++        G_fatal_error(_("Could not read symbol \"%s\""), icon);
++
++    S_stroke(Symb, symbol_size, rotation * (180 / M_PI), 0);
+     D_symbol(Symb, x0, y0, line_color, fill_color);
+ 
+ 
+     if (line_width > 0)
+-	D_line_width(0);
++        D_line_width(0);
+ 
+     G_free(Symb);
+Index: /grass/branches/releasebranch_7_2/display/d.northarrow/main.c
+===================================================================
+--- /grass/branches/releasebranch_7_2/display/d.northarrow/main.c	(revision 69050)
++++ /grass/branches/releasebranch_7_2/display/d.northarrow/main.c	(revision 69051)
+@@ -1,2 +1,3 @@
++
+ /****************************************************************************
+  *
+@@ -19,4 +20,5 @@
+ #include <unistd.h>
+ #include <string.h>
++#include <math.h>
+ #include <grass/gis.h>
+ #include <grass/display.h>
+@@ -24,6 +26,6 @@
+ #include "options.h"
+ 
+-int fg_color, bg_color;
+-int do_background = TRUE;
++int fg_color, bg_color, text_color;
++//int do_background = TRUE;
+ 
+ int main(int argc, char **argv)
+@@ -31,8 +33,10 @@
+     struct GModule *module;
+     struct Option *bg_color_opt, *fg_color_opt, *coords, *n_arrow, *fsize,
+-		 *width_opt;
+-    struct Flag *no_text;
++        *width_opt, *rotation_opt, *lbl_opt, *text_color_opt;
++    struct Flag *no_text, *rotate_text, *rads;
+     double east, north;
++    double rotation;
+     double fontsize, line_width;
++    int rot_with_text;
+ 
+     /* Initialize the GIS calls */
+@@ -42,43 +46,32 @@
+     G_add_keyword(_("display"));
+     G_add_keyword(_("cartography"));
+-    module->description = _("Displays a north arrow on the graphics monitor.");
++    module->description =
++        _("Displays a north arrow on the graphics monitor.");
+ 
+     n_arrow = G_define_option();
+     n_arrow->key = "style";
+     n_arrow->description = _("North arrow style");
+-    n_arrow->options = "1a,1b,2,3,4,5,6,7a,7b,8a,8b,9,fancy_compass,basic_compass";
+-    G_asprintf((char **) &(n_arrow->descriptions), 
+-               "1a;%s;"
+-               "1b;%s;"
+-               "2;%s;"
+-               "3;%s;"
+-               "4;%s;"
+-               "5;%s;"
+-               "6;%s;"
+-               "7a;%s;"
+-               "7b;%s;"
+-               "8a;%s;"
+-               "8b;%s;"
+-               "9;%s;"
+-               "fancy_compass;%s;"
+-               "basic_compass;%s;",
++    n_arrow->options =
++        "1a,1b,2,3,4,5,6,7a,7b,8a,8b,9,fancy_compass,basic_compass,arrow1,arrow2,arrow3,star";
++    G_asprintf((char **)&(n_arrow->descriptions),
++               "1a;%s;" "1b;%s;" "2;%s;" "3;%s;" "4;%s;" "5;%s;" "6;%s;"
++               "7a;%s;" "7b;%s;" "8a;%s;" "8b;%s;" "9;%s;" "fancy_compass;%s;"
++               "basic_compass;%s;" "arrow1;%s;" "arrow2;%s;" "arrow3;%s;"
++               "star;%s;",
+                _("Two color arrowhead"),
+                _("Two color arrowhead with circle"),
+-               _("Narrow with blending N"),
+-               _("Long with small arrowhead"),
++               _("Narrow with blending N"), _("Long with small arrowhead"),
+                _("Inverted narrow inside a circle"),
+                _("Triangle and N inside a circle"),
+                _("Arrowhead and N inside a circle"),
+                _("Tall half convex arrowhead"),
+-               _("Tall half concave arrowhead"),
+-               _("Thin arrow in a circle"),
+-               _("Fat arrow in a circle"),
+-               _("One color arrowhead"),
+-               _("Fancy compass"),
+-               _("Basic compass"));
++               _("Tall half concave arrowhead"), _("Thin arrow in a circle"),
++               _("Fat arrow in a circle"), _("One color arrowhead"),
++               _("Fancy compass"), _("Basic compass"), _("Simple arrow"),
++               _("Thin arrow"), _("Fat arrow"), _("4-point star"));
+     n_arrow->answer = "1a";
+     n_arrow->guisection = _("Style");
+     n_arrow->gisprompt = "old,northarrow,northarrow";
+-    
++
+     coords = G_define_option();
+     coords->key = "at";
+@@ -88,8 +81,24 @@
+     coords->options = "0-100";
+     coords->label =
+-	_("Screen coordinates of the rectangle's top-left corner");
++        _("Screen coordinates of the rectangle's top-left corner");
+     coords->description = _("(0,0) is lower-left of the display frame");
+ 
+-    fg_color_opt = G_define_standard_option(G_OPT_C);
++    rotation_opt = G_define_option();
++    rotation_opt->key = "rotation";
++    rotation_opt->type = TYPE_DOUBLE;
++    rotation_opt->required = NO;
++    rotation_opt->answer = "0";
++    rotation_opt->description =
++        _("Rotation angle in degrees (counter-clockwise)");
++
++    lbl_opt = G_define_option();
++    lbl_opt->key = "label";
++    lbl_opt->required = NO;
++    lbl_opt->answer = "N";
++    lbl_opt->description =
++        _("Displayed letter on the top of arrow");
++    lbl_opt->guisection = _("Text");
++
++    fg_color_opt = G_define_standard_option(G_OPT_CN);
+     fg_color_opt->label = _("Line color");
+     fg_color_opt->guisection = _("Colors");
+@@ -98,6 +107,11 @@
+     bg_color_opt->key = "fill_color";
+     bg_color_opt->label = _("Fill color");
+-    bg_color_opt->answer = _("black");
+     bg_color_opt->guisection = _("Colors");
++
++    text_color_opt = G_define_standard_option(G_OPT_C);
++    text_color_opt->key = "text_color";
++    text_color_opt->label = _("Text color");
++    text_color_opt->answer = NULL;
++    text_color_opt->guisection = _("Colors");
+ 
+     width_opt = G_define_option();
+@@ -115,5 +129,5 @@
+     fsize->description = _("Font size");
+     fsize->guisection = _("Text");
+-    
++
+     no_text = G_define_flag();
+     no_text->key = 't';
+@@ -121,16 +135,22 @@
+     no_text->guisection = _("Text");
+ 
+-/* TODO:
+-     - add rotation= option to rotate the north arrow by an arbitrary amount.
+-       do a bit of trig to figure out where to put the "N" (and rotate it too).
+-     - add a -n flag to rotate to match true north instead of grid north.
++    rotate_text = G_define_flag();
++    rotate_text->key = 'w';
++    rotate_text->description = _("Do not rotate text with symbol");
++    rotate_text->guisection = _("Text");
++
++    rads = G_define_flag();
++    rads->key = 'r';
++    rads->description = _("Use radians instead of degrees for rotation");
++
++    /* TODO:
++       - add a -n flag to rotate to match true north instead of grid north.
+        Similar to 'g.region -n' but use the at=x,y coord for the convergence
+        angle calc. (assuming that's the center of the icon)
+- */
++     */
+ 
+ 
+     if (G_parser(argc, argv))
+-	exit(EXIT_FAILURE);
+-
++        exit(EXIT_FAILURE);
+ 
+     sscanf(coords->answers[0], "%lf", &east);
+@@ -139,13 +159,34 @@
+     fontsize = atof(fsize->answer);
+     if (no_text->answer)
+-	fontsize = -1;
++        fontsize = -1;
++
++    rot_with_text = 0;
++    if (!rotate_text->answer)
++        rot_with_text = 1;
++
++    /* Convert to radians */
++    rotation = atof(rotation_opt->answer);
++    if (!rads->answer)
++        rotation *= M_PI / 180.0;
++    rotation = fmod(rotation, 2.0 * M_PI);
++    if (rotation < 0.0)
++        rotation += 2.0 * M_PI;
+ 
+     /* Parse and select foreground color */
+-    fg_color = D_parse_color(fg_color_opt->answer, 0);
++    fg_color = D_parse_color(fg_color_opt->answer, 1);
+ 
+     /* Parse and select background color */
+     bg_color = D_parse_color(bg_color_opt->answer, 1);
+-    if (bg_color == 0)
+-	do_background = FALSE;
++
++    /* Parse and select text color */
++    if (text_color_opt->answer)
++        text_color = D_parse_color(text_color_opt->answer, 0);
++    else if (strcmp(fg_color_opt->answer, "none") != 0)
++        text_color = D_parse_color(fg_color_opt->answer, 1);
++    else if (strcmp(bg_color_opt->answer, "none") != 0)
++        text_color = D_parse_color(bg_color_opt->answer, 1);
++    else
++        text_color = 0;
++
+ 
+     line_width = atof(width_opt->answer);
+@@ -155,8 +196,8 @@
+         line_width = 72;
+ 
+-
+     D_open_driver();
+ 
+-    draw_n_arrow(east, north, fontsize, n_arrow->answer, line_width);
++    draw_n_arrow(east, north, rotation, lbl_opt->answer, rot_with_text,
++                 fontsize, n_arrow->answer, line_width);
+ 
+     D_save_command(G_recreate_command());
+Index: /grass/branches/releasebranch_7_2/display/d.northarrow/options.h
+===================================================================
+--- /grass/branches/releasebranch_7_2/display/d.northarrow/options.h	(revision 69050)
++++ /grass/branches/releasebranch_7_2/display/d.northarrow/options.h	(revision 69051)
+@@ -3,6 +3,6 @@
+ extern int fg_color;
+ extern int bg_color;
+-extern int do_background;
++extern int text_color;
+ 
+ /* draw_n_arrow.c */
+-int draw_n_arrow(double, double, double, char *, double);
++int draw_n_arrow(double, double, double, char *, int, double, char *, double);

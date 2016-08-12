@@ -1,0 +1,15 @@
+Index: /grass/trunk/display/d.legend/draw.c
+===================================================================
+--- /grass/trunk/display/d.legend/draw.c	(revision 69035)
++++ /grass/trunk/display/d.legend/draw.c	(revision 69036)
+@@ -1344,6 +1344,8 @@
+ 
+ 
+-            D_use_color(colorbg);
+-            D_box_abs(x0bg, y0bg, x1bg, y1bg);
++            if (colorbg != 0) {
++                D_use_color(colorbg);
++                D_box_abs(x0bg, y0bg, x1bg, y1bg);
++            }
+ 
+             D_use_color(colorb);

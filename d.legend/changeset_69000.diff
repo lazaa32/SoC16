@@ -1,0 +1,383 @@
+Index: /grass/trunk/display/d.legend/draw.c
+===================================================================
+--- /grass/trunk/display/d.legend/draw.c	(revision 68999)
++++ /grass/trunk/display/d.legend/draw.c	(revision 69000)
+@@ -30,5 +30,5 @@
+           struct Option *opt_at, struct Option *opt_fontsize,
+           struct Option *opt_tstep, struct Option *opt_range, struct Flag *histo,
+-          struct Flag *hidestr, int log_sc, int draw, int digits)
++          struct Flag *hidestr, int log_sc, int draw, int digits, char *units)
+ {
+     char buff[512];
+@@ -54,5 +54,5 @@
+     double maxCat;
+     int horiz;
+-    char *units;
++    char *units_bottom;
+     double t_start;
+     double max_hist;
+@@ -483,7 +483,24 @@
+                         if (!hide_catstr)       /* both */
+                             strcat(buff, ")");
+-                    }
+-                    if (!hide_catstr)   /* str */
++                        D_text_size(txsiz, txsiz);
++                        D_get_text_box(buff,&bb,&bt, &bl, &br);
++                        LabelW = br - bl;
++                        if (LabelW > MaxLabelW) {
++                            MaxLabelW = LabelW;
++                            sprintf(MaxLabel, "%s", buff);
++                    }
++                    }
++                    if (!hide_catstr) {  /* str */
+                         sprintf(buff + strlen(buff), " %s", cstr);
++                        if (strlen(units)>0)
++                            strcat(buff, units);
++                        D_text_size(txsiz, txsiz);
++                        D_get_text_box(buff,&bb,&bt, &bl, &br);
++                        LabelW = br - bl;
++                        if (LabelW > MaxLabelW) {
++                            MaxLabelW = LabelW;
++                            sprintf(MaxLabel, "%s", buff);
++                }
++                    }
+                 }
+                 else {          /* ie FP map */
+@@ -502,5 +519,14 @@
+                         }
+                         sprintf(buff, DispFormat, val);
+-                    }
++                        if (strlen(units)>0)
++                            strcat(buff, units);
++                        D_text_size(txsiz, txsiz);
++                        D_get_text_box(buff,&bb,&bt, &bl, &br);
++                        LabelW = br - bl;
++                        if (LabelW > MaxLabelW) {
++                            MaxLabelW = LabelW;
++                            sprintf(MaxLabel, "%s", buff);
++                    }
++                }
+                 }
+ 
+@@ -572,11 +598,4 @@
+                     }
+                 }
+-                D_text_size(txsiz, txsiz);
+-                D_get_text_box(buff,&bb,&bt, &bl, &br);
+-                LabelW = br - bl;
+-                if (LabelW > MaxLabelW) {
+-                    MaxLabelW = LabelW;
+-                    sprintf(MaxLabel, DispFormat, val);
+-                }
+             }                   /* for */
+         }
+@@ -596,4 +615,13 @@
+                 }
+                 sprintf(buff, DispFormat, tick_values[i]);
++                if (strlen(units)>0)
++                    strcat(buff, units);
++                D_text_size(txsiz, txsiz);
++                D_get_text_box(buff,&bb,&bt, &bl, &br);
++                LabelW = br - bl;
++                if (LabelW > MaxLabelW) {
++                    MaxLabelW = LabelW;
++                    sprintf(MaxLabel, "%s", buff);
++                }
+ 
+                 if (log_sc) {
+@@ -649,12 +677,5 @@
+                     D_text(buff);
+                 }
+-                D_text_size(txsiz, txsiz);
+-                D_get_text_box(buff,&bb,&bt, &bl, &br);
+-                LabelW = br - bl;
+-                if (LabelW > MaxLabelW) {
+-                    MaxLabelW = LabelW;
+-                    sprintf(MaxLabel, DispFormat, tick_values[i]);
+-            }
+-        }
++            }
+         }
+ 
+@@ -667,4 +688,13 @@
+                     val = pow(10,num);
+                     sprintf(buff, DispFormat, val);
++                    if (strlen(units)>0)
++                        strcat(buff, units);
++                    D_text_size(txsiz, txsiz);
++                    D_get_text_box(buff,&bb,&bt, &bl, &br);
++                    LabelW = br - bl;
++                    if (LabelW > MaxLabelW) {
++                        MaxLabelW = LabelW;
++                        sprintf(MaxLabel, "%s", buff);
++                    }
+                     coef = (log10(val) - log10(dmin)) / (log10(dmax) - log10(dmin));
+                     if (draw){
+@@ -713,4 +743,5 @@
+                         D_use_color(color);
+                         D_text(buff);
++
+                     }
+                 t_start += t_step;
+@@ -726,4 +757,6 @@
+                     while (t_start <= dmax) {
+                         sprintf(buff, DispFormat, t_start);
++                        if (strlen(units)>0)
++                            strcat(buff, units);
+                         D_text_size(txsiz, txsiz);
+                         D_get_text_box(buff,&bb,&bt, &bl, &br);
+@@ -731,5 +764,5 @@
+                         if (LabelW > MaxLabelW) {
+                             MaxLabelW = LabelW;
+-                            sprintf(MaxLabel, DispFormat, t_start);
++                            sprintf(MaxLabel, "%s", buff);
+                         }
+                         if (draw) {
+@@ -750,4 +783,6 @@
+                     while (t_start <= dmax) {
+                         sprintf(buff, DispFormat, t_start);
++                        if (strlen(units)>0)
++                            strcat(buff, units);
+                         D_text_size(txsiz, txsiz);
+                         D_get_text_box(buff,&bb,&bt, &bl, &br);
+@@ -755,5 +790,5 @@
+                         if (LabelW > MaxLabelW) {
+                             MaxLabelW = LabelW;
+-                            sprintf(MaxLabel, DispFormat, t_start);
++                            sprintf(MaxLabel, "%s", buff);
+                         }
+ 
+@@ -778,4 +813,6 @@
+                     while (t_start <= dmax) {
+                         sprintf(buff, DispFormat, t_start);
++                        if (strlen(units)>0)
++                            strcat(buff, units);
+                         D_text_size(txsiz, txsiz);
+                         D_get_text_box(buff,&bb,&bt, &bl, &br);
+@@ -783,5 +820,5 @@
+                         if (LabelW > MaxLabelW) {
+                             MaxLabelW = LabelW;
+-                            sprintf(MaxLabel, DispFormat, t_start);
++                            sprintf(MaxLabel, "%s", buff);
+                         }
+ 
+@@ -803,4 +840,6 @@
+                     while (t_start <= dmax) {
+                         sprintf(buff, DispFormat, t_start);
++                        if (strlen(units)>0)
++                            strcat(buff, units);
+                         D_text_size(txsiz, txsiz);
+                         D_get_text_box(buff,&bb,&bt, &bl, &br);
+@@ -808,5 +847,5 @@
+                         if (LabelW > MaxLabelW) {
+                             MaxLabelW = LabelW;
+-                            sprintf(MaxLabel, DispFormat, t_start);
++                            sprintf(MaxLabel, "%s", buff);
+                         }
+ 
+@@ -907,14 +946,14 @@
+             /* print units label, if present */
+             if (maptype == MAP_TYPE_RASTER2D)
+-                units = Rast_read_units(map_name, "");
++                units_bottom = Rast_read_units(map_name, "");
+             else
+                 units = "";
+             /* FIXME: does the raster3d really need to be opened to read the units?
+-               units = Rast3d_get_unit(map_fid); */
+-
+-            if (!units)
+-                units = "";
+-
+-            if (strlen(units)) {
++               units_bottom = Rast3d_get_unit(map_fid); */
++
++            if (!units_bottom)
++                units_bottom = "";
++
++            if (strlen(units_bottom)) {
+                 D_text_size(titsiz, titsiz);
+                 D_get_text_box(title, &bb, &bt, &bl, &br);
+@@ -932,5 +971,5 @@
+                     D_use_color(color);
+                     D_pos_abs(x_tit, y_tit);
+-                    D_text(units);
++                    D_text(units_bottom);
+                 }
+             }
+@@ -1129,4 +1168,6 @@
+                 if (!hide_catnum) {     /* num */
+                     sprintf(buff, DispFormat, (int)catlist[i]);
++                    if (strlen(units)>0)
++                        strcat(buff, units);
+                     D_text_size(txsiz, txsiz);
+                     D_get_text_box(buff,&bb,&bt, &bl, &br);
+@@ -1134,8 +1175,10 @@
+                     if (LabelW > MaxLabelW) {
+                         MaxLabelW = LabelW;
+-                        sprintf(MaxLabel, DispFormat, (int)catlist[i]);
++                        sprintf(MaxLabel, "%s", buff);
+                     }
+                     if (!flip) {
+                         sprintf(buff, DispFormat, (int)catlist[i]);
++                        if (strlen(units)>0)
++                            strcat(buff, units);
+                         D_text_size(txsiz, txsiz);
+                         D_get_text_box(buff,&bb,&bt, &bl, &br);
+@@ -1143,5 +1186,5 @@
+                         if (LabelW > MaxLabelW) {
+                             MaxLabelW = LabelW;
+-                            sprintf(MaxLabel, DispFormat, (int)catlist[i]);
++                            sprintf(MaxLabel, "%s", buff);
+                         }
+                     }
+@@ -1149,4 +1192,6 @@
+                         sprintf(buff, DispFormat,
+                                 (int)catlist[catlistCount - i - 1]);
++                        if (strlen(units)>0)
++                            strcat(buff, units);
+                         D_text_size(txsiz, txsiz);
+                         D_get_text_box(buff,&bb,&bt, &bl, &br);
+@@ -1154,6 +1199,5 @@
+                         if (LabelW > MaxLabelW) {
+                             MaxLabelW = LabelW;
+-                            sprintf(MaxLabel, DispFormat,
+-                                    (int)catlist[catlistCount - i - 1]);
++                            sprintf(MaxLabel, "%s", buff);
+                         }
+                     }
+@@ -1163,4 +1207,6 @@
+                 if (!hide_catstr) {       /* str */
+                     sprintf(buff + strlen(buff), " %s", cstr);
++                    if (strlen(units)>0)
++                        strcat(buff, units);
+                     D_text_size(txsiz, txsiz);
+                     D_get_text_box(buff,&bb,&bt, &bl, &br);
+@@ -1178,4 +1224,6 @@
+                            the use= command line parameter (helps with log scale) */
+                         sprintf(buff, "%s", opt_use->answers[i]);
++                        if (strlen(units)>0)
++                            strcat(buff, units);
+                         D_text_size(txsiz, txsiz);
+                         D_get_text_box(buff,&bb,&bt, &bl, &br);
+@@ -1183,5 +1231,5 @@
+                         if (LabelW > MaxLabelW) {
+                             MaxLabelW = LabelW;
+-                            sprintf(MaxLabel, " %s", opt_use->answers[i]);
++                            sprintf(MaxLabel, " %s", buff);
+                         }
+                     }
+@@ -1189,4 +1237,6 @@
+                         /* automatically generated/tuned decimal precision format */
+                         sprintf(buff, DispFormat, catlist[i]);
++                        if (strlen(units)>0)
++                            strcat(buff, units);
+                         D_text_size(txsiz, txsiz);
+                         D_get_text_box(buff,&bb,&bt, &bl, &br);
+@@ -1194,5 +1244,5 @@
+                         if (LabelW > MaxLabelW) {
+                             MaxLabelW = LabelW;
+-                            sprintf(MaxLabel, DispFormat, catlist[i]);
++                            sprintf(MaxLabel, "%s", buff);
+                 }
+                     }
+@@ -1201,4 +1251,6 @@
+                     if (use_catlist){
+                         sprintf(buff, "%s", opt_use->answers[catlistCount - i - 1]);
++                        if (strlen(units)>0)
++                            strcat(buff, units);
+                         D_text_size(txsiz, txsiz);
+                         D_get_text_box(buff,&bb,&bt, &bl, &br);
+@@ -1206,9 +1258,11 @@
+                         if (LabelW > MaxLabelW) {
+                             MaxLabelW = LabelW;
+-                            sprintf(MaxLabel, " %s", opt_use->answers[catlistCount - i - 1]);
++                            sprintf(MaxLabel, " %s", buff);
+                 }
+             }
+                     else {
+                         sprintf(buff, DispFormat, catlist[catlistCount - i - 1]);
++                        if (strlen(units)>0)
++                            strcat(buff, units);
+                         D_text_size(txsiz, txsiz);
+                         D_get_text_box(buff,&bb,&bt, &bl, &br);
+@@ -1216,5 +1270,5 @@
+                         if (LabelW > MaxLabelW) {
+                             MaxLabelW = LabelW;
+-                            sprintf(MaxLabel, " %s", opt_use->answers[catlistCount - i - 1]);
++                            sprintf(MaxLabel, " %s", buff);
+             }
+                     }
+Index: /grass/trunk/display/d.legend/histogram.c
+===================================================================
+--- /grass/trunk/display/d.legend/histogram.c	(revision 68999)
++++ /grass/trunk/display/d.legend/histogram.c	(revision 69000)
+@@ -150,4 +150,5 @@
+ 
+     for (i = dist_stats.mincat, ystep = 0; i <= dist_stats.maxcat; i++) {
++        cell_count = 0;
+         if (!ptr)
+             break;
+Index: /grass/trunk/display/d.legend/local_proto.h
+===================================================================
+--- /grass/trunk/display/d.legend/local_proto.h	(revision 68999)
++++ /grass/trunk/display/d.legend/local_proto.h	(revision 69000)
+@@ -43,3 +43,3 @@
+           double, const char *, double *, double, int, int, struct Option *,
+           struct Option *, struct Option *, struct Option *, struct Option *,
+-          struct Flag *, struct Flag *, int, int, int);
++          struct Flag *, struct Flag *, int, int, int, char *);
+Index: /grass/trunk/display/d.legend/main.c
+===================================================================
+--- /grass/trunk/display/d.legend/main.c	(revision 68999)
++++ /grass/trunk/display/d.legend/main.c	(revision 69000)
+@@ -55,5 +55,5 @@
+         *opt_font, *opt_path, *opt_charset, *opt_fontsize, *opt_title,
+         *opt_ticks, *opt_tstep, *opt_brdcolor, *opt_bgcolor,
+-        *opt_tit_fontsize, *opt_digits;
++        *opt_tit_fontsize, *opt_digits, *opt_units;
+     struct Flag *hidestr, *hidenum, *hidenodata, *smooth, *flipit, *histo,
+         *showtick, *showbg, *log_sc;
+@@ -65,4 +65,5 @@
+     double fontsize;
+     char *title;
++    char *units;
+     double *tick_values;
+     double t_step;
+@@ -126,4 +127,12 @@
+         _("Thinning factor (thin=10 gives cats 0,10,20...)");
+     opt_thin->guisection = _("Advanced");
++
++    opt_units = G_define_option();
++    opt_units->key = "units";
++    opt_units->type = TYPE_STRING;
++    opt_units->required = NO;
++    opt_units->description =
++            _("Units to display after labels (e.g. meters)");
++    opt_units->guisection = _("Advanced");
+ 
+     opt_labelnum = G_define_option();
+@@ -307,4 +316,10 @@
+         title = "";
+ 
++    if (opt_units->answer) {
++        units = opt_units->answer;
++    }
++    else
++        units = "";
++
+     hide_catstr = hidestr->answer;      /* note hide_catstr gets changed and re-read below */
+     hide_catnum = hidenum->answer;
+@@ -462,5 +477,5 @@
+              fontsize, tit_fontsize, title, tick_values, t_step, colorb,
+              colorbg, opt_use, opt_at, opt_fontsize, opt_tstep,
+-             opt_range, histo, hidestr, log_scale, 0, digits);
++             opt_range, histo, hidestr, log_scale, 0, digits, units);
+ 
+     draw(map_name, maptype, color, thin, lines, steps, fp, label_indent,
+@@ -470,5 +485,5 @@
+          tit_fontsize, title, tick_values, t_step, colorb, colorbg, opt_use,
+          opt_at, opt_fontsize, opt_tstep, opt_range, histo,
+-         hidestr, log_scale, 1, digits);
++         hidestr, log_scale, 1, digits, units);
+ 
+     D_close_driver();

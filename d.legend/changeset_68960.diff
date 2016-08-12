@@ -1,0 +1,157 @@
+Index: /grass/trunk/display/d.legend/draw.c
+===================================================================
+--- /grass/trunk/display/d.legend/draw.c	(revision 68959)
++++ /grass/trunk/display/d.legend/draw.c	(revision 68960)
+@@ -29,7 +29,6 @@
+           double t_step, int colorb, int colorbg, struct Option *opt_use,
+           struct Option *opt_at, struct Option *opt_fontsize,
+-          struct Option *opt_ticks, struct Option *opt_tstep,
+-          struct Option *opt_range, struct Flag *histo, struct Flag *hidestr,
+-          int log_sc, int draw, int digits)
++          struct Option *opt_tstep, struct Option *opt_range, struct Flag *histo,
++          struct Flag *hidestr, int log_sc, int draw, int digits)
+ {
+     char buff[512];
+@@ -396,10 +395,8 @@
+                 if (!fp) {
+                     if (!flip)
+-                        tcell =
+-                            min_ind + k * (double)(1 + max_ind -
+-                                                   min_ind) / lleg;
++                        tcell = min_ind + k * (double)(1 + max_ind - min_ind) / lleg;
+                     else
+-                        D_box_abs(x0, y0 + k, x0 - (dx ? -dx : 1),
+-                                  y0 + k + (dy ? -dy : 1));
++                        tcell = (max_ind + 1) - k * (double)(1 + max_ind - min_ind) / lleg;
++                    D_color((CELL) tcell, &colors);
+                 }
+                 else {
+@@ -425,6 +422,4 @@
+             if (do_cats < steps)
+                 steps = do_cats;
+-            if ((steps < 2))
+-                steps = 2;      /* ward off the ppl floating point exception */
+         }
+ 
+@@ -587,10 +582,16 @@
+         }
+ 
++        if (!fp) {
++            dmin = min_ind;
++            dmax = max_ind;
++            sprintf(DispFormat, "%s", "%.0f");
++        }
++
+         /* LABEL_VALUE OPTION */
+         if (ticksCount > 0) {
+             for (i = 0; i < ticksCount; i++) {
+                 if ((tick_values[i] < dmin) || (tick_values[i] > dmax)) {
+-                    G_fatal_error(_("tick_value=%s out of range [%.3f, %.3f]"),
+-                                  opt_ticks->answers[i], dmin, dmax);
++                    G_fatal_error(_("tick_value=%.3f out of range [%.3f, %.3f]"),
++                                  tick_values[i], dmin, dmax);
+                 }
+                 sprintf(buff, DispFormat, tick_values[i]);
+@@ -723,5 +724,5 @@
+             if (!flip) {
+                 if (!horiz)
+-                    while (t_start < dmax) {
++                    while (t_start <= dmax) {
+                         sprintf(buff, DispFormat, t_start);
+                         D_text_size(txsiz, txsiz);
+@@ -747,5 +748,5 @@
+                     }
+                 else
+-                    while (t_start < dmax) {
++                    while (t_start <= dmax) {
+                         sprintf(buff, DispFormat, t_start);
+                         D_text_size(txsiz, txsiz);
+@@ -775,5 +776,5 @@
+             else {
+                 if (!horiz)
+-                    while (t_start < dmax) {
++                    while (t_start <= dmax) {
+                         sprintf(buff, DispFormat, t_start);
+                         D_text_size(txsiz, txsiz);
+@@ -800,5 +801,5 @@
+                     }
+                 else
+-                    while (t_start < dmax) {
++                    while (t_start <= dmax) {
+                         sprintf(buff, DispFormat, t_start);
+                         D_text_size(txsiz, txsiz);
+@@ -965,6 +966,8 @@
+             }
+ 
+-            D_use_color(colorbg);
+-            D_box_abs(x0bg, y0bg, x1bg, y1bg);
++            if (colorbg != 0) {
++                D_use_color(colorbg);
++                D_box_abs(x0bg, y0bg, x1bg, y1bg);
++            }
+ 
+             D_use_color(colorb);
+Index: /grass/trunk/display/d.legend/histogram.c
+===================================================================
+--- /grass/trunk/display/d.legend/histogram.c	(revision 68959)
++++ /grass/trunk/display/d.legend/histogram.c	(revision 68960)
+@@ -233,12 +233,12 @@
+                 if (horiz) {
+                     if (flip)
+-                        D_box_abs(x0 + width + y0_adjust + ((i - 1) * dy),
++                        D_box_abs(x0 + width + y0_adjust + ((i - 2) * dy),
+                                   y0 - 1,
+-                                  x0 + width + y0_adjust + 1 + (i * dy),
++                                  x0 + width + y0_adjust + 1 + ((i - 1) * dy),
+                                   y0 - 1 - dx);
+                     else
+-                        D_box_abs(x0 + y0_adjust + ((i - 1) * dy),
++                        D_box_abs(x0 + y0_adjust + ((i - 2) * dy),
+                                   y0 - 1,
+-                                  x0 - 1 + y0_adjust + (i * dy), y0 - 1 - dx);
++                                  x0 - 1 + y0_adjust + ((i - 1) * dy), y0 - 1 - dx);
+                 }
+                 else {          /* vertical */
+@@ -247,11 +247,11 @@
+                         /* GRASS_EPSILON fudge around D_box_abs() weirdness + PNG driver */
+                         D_box_abs(x0 - 1 - GRASS_EPSILON * 10,
+-                                  y0 + height + y0_adjust + ((i - 1) * dy),
++                                  y0 + height + y0_adjust + ((i - 2) * dy),
+                                   x0 - 1 - dx,
+-                                  y0 + height + y0_adjust + 1 + (i * dy));
++                                  y0 + height + y0_adjust + 1 + ((i - 1) * dy));
+                     else
+                         D_box_abs(x0 - 1 - GRASS_EPSILON * 10,
+-                                  y0 + y0_adjust + ((i - 1) * dy),
+-                                  x0 - 1 - dx, y0 + y0_adjust - 1 + (i * dy));
++                                  y0 + y0_adjust + ((i - 2) * dy),
++                                  x0 - 1 - dx, y0 + y0_adjust - 1 + ((i - 1) * dy));
+                 }
+             }
+Index: /grass/trunk/display/d.legend/local_proto.h
+===================================================================
+--- /grass/trunk/display/d.legend/local_proto.h	(revision 68959)
++++ /grass/trunk/display/d.legend/local_proto.h	(revision 68960)
+@@ -43,3 +43,3 @@
+           double, const char *, double *, double, int, int, struct Option *,
+           struct Option *, struct Option *, struct Option *, struct Option *,
+-          struct Option *, struct Flag *, struct Flag *, int, int, int);
++          struct Flag *, struct Flag *, int, int, int);
+Index: /grass/trunk/display/d.legend/main.c
+===================================================================
+--- /grass/trunk/display/d.legend/main.c	(revision 68959)
++++ /grass/trunk/display/d.legend/main.c	(revision 68960)
+@@ -461,5 +461,5 @@
+              UserRangeMax, catlist, catlistCount, use_catlist, ticksCount,
+              fontsize, tit_fontsize, title, tick_values, t_step, colorb,
+-             colorbg, opt_use, opt_at, opt_fontsize, opt_ticks, opt_tstep,
++             colorbg, opt_use, opt_at, opt_fontsize, opt_tstep,
+              opt_range, histo, hidestr, log_scale, 0, digits);
+ 
+@@ -469,5 +469,5 @@
+          catlist, catlistCount, use_catlist, ticksCount, fontsize,
+          tit_fontsize, title, tick_values, t_step, colorb, colorbg, opt_use,
+-         opt_at, opt_fontsize, opt_ticks, opt_tstep, opt_range, histo,
++         opt_at, opt_fontsize, opt_tstep, opt_range, histo,
+          hidestr, log_scale, 1, digits);
+ 
